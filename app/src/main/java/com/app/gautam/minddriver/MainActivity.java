@@ -12,15 +12,11 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.EditText;
-import android.widget.ImageView;
+import android.widget.CompoundButton;
 import android.widget.ProgressBar;
-import android.widget.SeekBar;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import com.androidplot.xy.XYPlot;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.neurosky.AlgoSdk.NskAlgoDataType;
@@ -33,16 +29,11 @@ import com.neurosky.connection.DataType.MindDataType;
 import com.neurosky.connection.TgStreamHandler;
 import com.neurosky.connection.TgStreamReader;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.Timer;
-import java.util.TimerTask;
-
 public class MainActivity extends AppCompatActivity {
     DatabaseReference databaseReference = FirebaseDatabase.getInstance().getReference();
     DatabaseReference syncref = databaseReference.child("last");
+    DatabaseReference connectionTypeRef = databaseReference.child("connection");
+    DatabaseReference algoTypeReference = databaseReference.child("attention");
     private static final String TAG = "MainACTIVITY";
     // COMM SDK handles
     private TgStreamReader tgStreamReader;
@@ -65,7 +56,8 @@ public class MainActivity extends AppCompatActivity {
     private Button setAlgosButton;
     private Button startButton;
     private Button stopButton;
-
+    private Switch aSwitch;
+    private boolean isSwitched = false;
     private TextView attValue;
     private TextView medValue;
     private TextView stateText;
@@ -73,6 +65,8 @@ public class MainActivity extends AppCompatActivity {
 
     private NskAlgoSdk nskAlgoSdk;
     private ProgressBar p1,p2;
+    private ProgressBar alphaa, betaa, gamaa, deltaa, thetaa;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -106,6 +100,29 @@ public class MainActivity extends AppCompatActivity {
         sqText = (TextView)this.findViewById(R.id.sqText);
         p1 = (ProgressBar) findViewById(R.id.progressBar1);
         p2 = (ProgressBar) findViewById(R.id.progressBar2);
+        alphaa = (ProgressBar) findViewById(R.id.alpha);
+        betaa = (ProgressBar) findViewById(R.id.beta);
+        gamaa = (ProgressBar) findViewById(R.id.gama);
+        deltaa = (ProgressBar) findViewById(R.id.delta);
+        thetaa = (ProgressBar) findViewById(R.id.theta);
+        aSwitch = (Switch) findViewById(R.id.switch1);
+        algoTypeReference.setValue(String.valueOf(1));
+        aSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                if(b){
+                    aSwitch.setText("Meditation");
+                    isSwitched = true;
+                    algoTypeReference.setValue(String.valueOf(0));
+                }
+                else{
+                    aSwitch.setText("Attention");
+                    isSwitched = false;
+                    algoTypeReference.setValue(String.valueOf(1));
+                }
+            }
+        });
+
         int red,blue;
         red = Color.RED;
         blue = Color.BLUE;
@@ -186,6 +203,7 @@ public class MainActivity extends AppCompatActivity {
 
                 algoTypes += NskAlgoType.NSK_ALGO_TYPE_BLINK.value;
 
+                algoTypes += NskAlgoType.NSK_ALGO_TYPE_BP.value;
 
                 if (algoTypes == 0) {
                     showDialog("Please select at least one algorithm");
@@ -316,6 +334,9 @@ public class MainActivity extends AppCompatActivity {
                         // change UI elements here
                         String sqStr = NskAlgoSignalQuality.values()[level].toString();
                         sqText.setText(sqStr);
+                        if(sqStr.equals("NOT DETECTED")){
+                            connectionTypeRef.setValue(String.valueOf(0));
+                        }
                     }
                 });
             }
@@ -325,9 +346,24 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onBPAlgoIndex(float delta, float theta, float alpha, float beta, float gamma) {
                 Log.d(TAG, "NskAlgoBPAlgoIndexListener: BP: D[" + delta + " dB] T[" + theta + " dB] A[" + alpha + " dB] B[" + beta + " dB] G[" + gamma + "]");
+                final int alp = (int)alpha;
+                final int bet = (int)beta;
+                final int gam = (int)gamma;
+                final int del = (int)delta;
+                final int thet = (int)theta;
 
                 final float fDelta = delta, fTheta = theta, fAlpha = alpha, fBeta = beta, fGamma = gamma;
-
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        // change UI elements here
+                        alphaa.setProgress(alp);
+                        betaa.setProgress(bet);
+                        gamaa.setProgress(gam);
+                        deltaa.setProgress(del);
+                        thetaa.setProgress(thet);
+                    }
+                });
             }
         });
 
@@ -343,7 +379,10 @@ public class MainActivity extends AppCompatActivity {
                         // change UI elements here
                         attValue.setText(finalAttStr);
                         //TODO
-                        syncref.setValue(String.valueOf(value));
+                        if(!isSwitched) {
+                            syncref.setValue(String.valueOf(value));
+                            connectionTypeRef.setValue(String.valueOf(1));
+                        }
                         p1.setProgress(value);
                     }
                 });
@@ -362,6 +401,10 @@ public class MainActivity extends AppCompatActivity {
                         // change UI elements here
                         medValue.setText(finalMedStr);
                         p2.setProgress(value);
+                        if(isSwitched) {
+                            syncref.setValue(String.valueOf(value));
+                            connectionTypeRef.setValue(String.valueOf(1));
+                        }
                     }
                 });
             }
@@ -375,43 +418,11 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         //blinkImage.setImageResource(R.mipmap.led_on);
-                        Timer timer = new Timer();
-
-                        timer.schedule(new TimerTask() {
-                            public void run() {
-                                runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        //blinkImage.setImageResource(R.mipmap.led_off);
-                                    }
-                                });
-                            }
-                        }, 500);
+                        Toast.makeText(getApplication(), "YOU BLINKED \uD83D\uDE09", Toast.LENGTH_SHORT).show();
                     }
                 });
             }
         });
-    }
-
-    private short[] readData(InputStream is, int size) {
-        short data[] = new short[size];
-        int lineCount = 0;
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-        try {
-            while (lineCount < size) {
-                String line = reader.readLine();
-                if (line == null || line.isEmpty()) {
-                    Log.d(TAG, "lineCount=" + lineCount);
-                    break;
-                }
-                data[lineCount] = Short.parseShort(line);
-                lineCount++;
-            }
-            Log.d(TAG, "lineCount=" + lineCount);
-        } catch (IOException e) {
-
-        }
-        return data;
     }
 
     @Override
@@ -558,5 +569,4 @@ public class MainActivity extends AppCompatActivity {
                 .setIcon(android.R.drawable.ic_dialog_alert)
                 .show();
     }
-
 }
